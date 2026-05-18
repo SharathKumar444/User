@@ -11,10 +11,14 @@ import {
   FiEdit2,
   FiTrash2,
   FiPlus,
-  FiBriefcase,
 } from "react-icons/fi"
 
-import API from "../api/userApi"
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+} from "recharts"
 
 const Dashboard = () => {
   const [users, setUsers] = useState([])
@@ -22,8 +26,9 @@ const Dashboard = () => {
 
   const [search, setSearch] = useState("")
   const [roleFilter, setRoleFilter] = useState("")
-
   const [editingUser, setEditingUser] = useState(null)
+
+  const [darkMode, setDarkMode] = useState(true)
 
   const [formData, setFormData] = useState({
     name: "",
@@ -33,14 +38,27 @@ const Dashboard = () => {
     bio: "",
   })
 
-  // FETCH USERS
+  // FETCH USERS FROM JSONPLACEHOLDER
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true)
 
-      const res = await API.get("/users")
+      const res = await fetch(
+        "https://jsonplaceholder.typicode.com/users"
+      )
 
-      setUsers(res.data)
+      const data = await res.json()
+
+      const formatted = data.map(user => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: "Frontend Developer",
+        company: user.company?.name || "N/A",
+        bio: "User from JSONPlaceholder API",
+      }))
+
+      setUsers(formatted)
     } catch (err) {
       console.log(err)
     } finally {
@@ -49,11 +67,10 @@ const Dashboard = () => {
   }, [])
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchUsers()
   }, [fetchUsers])
 
-  // DERIVED FILTERED USERS (NO useState, NO useEffect)
+  // FILTER USERS
   const filteredUsers = useMemo(() => {
     let data = [...users]
 
@@ -74,7 +91,20 @@ const Dashboard = () => {
     return data
   }, [users, search, roleFilter])
 
-  // FORM CHANGE
+  // CHART DATA
+  const roleData = useMemo(() => {
+    const roles = ["Frontend Developer"]
+
+    return roles.map(role => ({
+      name: role,
+      value: users.filter(u => u.role === role)
+        .length,
+    }))
+  }, [users])
+
+  const COLORS = ["#38bdf8"]
+
+  // FORM HANDLERS
   const handleChange = e => {
     setFormData({
       ...formData,
@@ -82,7 +112,6 @@ const Dashboard = () => {
     })
   }
 
-  // RESET FORM
   const resetForm = () => {
     setFormData({
       name: "",
@@ -91,29 +120,31 @@ const Dashboard = () => {
       company: "",
       bio: "",
     })
-
     setEditingUser(null)
   }
 
-  // SUBMIT (ADD / UPDATE)
-  const handleSubmit = async e => {
+  // ADD / UPDATE (LOCAL ONLY)
+  const handleSubmit = e => {
     e.preventDefault()
 
-    try {
-      if (editingUser) {
-        await API.put(
-          `/users/${editingUser.id}`,
-          formData
+    if (editingUser) {
+      setUsers(prev =>
+        prev.map(u =>
+          u.id === editingUser.id
+            ? { ...u, ...formData }
+            : u
         )
-      } else {
-        await API.post("/users", formData)
+      )
+    } else {
+      const newUser = {
+        id: Date.now(),
+        ...formData,
       }
 
-      fetchUsers()
-      resetForm()
-    } catch (err) {
-      console.log(err)
+      setUsers([newUser, ...users])
     }
+
+    resetForm()
   }
 
   // EDIT
@@ -123,189 +154,174 @@ const Dashboard = () => {
   }
 
   // DELETE
-  const handleDelete = async id => {
-    try {
-      await API.delete(`/users/${id}`)
-      fetchUsers()
-    } catch (err) {
-      console.log(err)
-    }
+  const handleDelete = id => {
+    setUsers(users.filter(u => u.id !== id))
   }
 
   return (
-    <div className="dashboard">
-      {/* SIDEBAR */}
-      <aside className="sidebar">
-        <h1>Admin Panel</h1>
+    <div
+      className={
+        darkMode ? "dashboard dark" : "dashboard light"
+      }
+    >
+      {/* TOP BAR */}
+      <div className="topbar">
+        <h2>User Dashboard</h2>
 
-        <nav>
-          <a href="#">Dashboard</a>
-          <a href="#">Users</a>
-          <a href="#">Settings</a>
-        </nav>
-      </aside>
-
-      {/* MAIN */}
-      <main className="main-content">
-        {/* TOP BAR */}
-        <div className="topbar">
-          <div>
-            <h2>User Management</h2>
-            <p>Full-stack CRUD Dashboard</p>
-          </div>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button
+            className="theme-btn"
+            onClick={() => setDarkMode(!darkMode)}
+          >
+            Toggle Theme
+          </button>
 
           <button className="add-btn">
             <FiPlus /> Add User
           </button>
         </div>
+      </div>
 
-        {/* STATS */}
-        <div className="stats-grid">
-          <div className="stat-card">
-            <FiUsers />
-            <div>
-              <h3>{users.length}</h3>
-              <p>Total Users</p>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <FiBriefcase />
-            <div>
-              <h3>
-                {
-                  users.filter(
-                    u =>
-                      u.role ===
-                      "Frontend Developer"
-                  ).length
-                }
-              </h3>
-              <p>Frontend Devs</p>
-            </div>
+      {/* STATS */}
+      <div className="stats-grid">
+        <div className="stat-card">
+          <FiUsers />
+          <div>
+            <h3>{users.length}</h3>
+            <p>Total Users</p>
           </div>
         </div>
+      </div>
 
-        {/* FILTERS */}
-        <div className="filter-bar">
-          <div className="search-box">
-            <FiSearch />
-            <input
-              placeholder="Search users..."
-              value={search}
-              onChange={e =>
-                setSearch(e.target.value)
-              }
-            />
-          </div>
-
-          <select
-            value={roleFilter}
+      {/* SEARCH + FILTER */}
+      <div className="filter-bar">
+        <div className="search-box">
+          <FiSearch />
+          <input
+            placeholder="Search users..."
+            value={search}
             onChange={e =>
-              setRoleFilter(e.target.value)
+              setSearch(e.target.value)
             }
+          />
+        </div>
+
+        <select
+          value={roleFilter}
+          onChange={e =>
+            setRoleFilter(e.target.value)
+          }
+        >
+          <option value="">All Roles</option>
+          <option value="Frontend Developer">
+            Frontend Developer
+          </option>
+        </select>
+      </div>
+
+      {/* CHART */}
+      <div className="chart-box">
+        <PieChart width={250} height={250}>
+          <Pie
+            data={roleData}
+            dataKey="value"
+            nameKey="name"
+            outerRadius={90}
           >
-            <option value="">All Roles</option>
-            <option value="Frontend Developer">
-              Frontend Developer
-            </option>
-            <option value="Backend Developer">
-              Backend Developer
-            </option>
-            <option value="UI/UX Designer">
-              UI/UX Designer
-            </option>
-          </select>
-        </div>
-
-        {/* FORM */}
-        <div className="form-card">
-          <h3>
-            {editingUser
-              ? "Update User"
-              : "Add User"}
-          </h3>
-
-          <form onSubmit={handleSubmit}>
-            <input
-              name="name"
-              placeholder="Name"
-              value={formData.name}
-              onChange={handleChange}
-            />
-
-            <input
-              name="email"
-              placeholder="Email"
-              value={formData.email}
-              onChange={handleChange}
-            />
-
-            <input
-              name="role"
-              placeholder="Role"
-              value={formData.role}
-              onChange={handleChange}
-            />
-
-            <input
-              name="company"
-              placeholder="Company"
-              value={formData.company}
-              onChange={handleChange}
-            />
-
-            <textarea
-              name="bio"
-              placeholder="Bio"
-              value={formData.bio}
-              onChange={handleChange}
-            />
-
-            <button type="submit">
-              {editingUser
-                ? "Update"
-                : "Create"}
-            </button>
-          </form>
-        </div>
-
-        {/* USERS */}
-        {loading ? (
-          <h2>Loading...</h2>
-        ) : (
-          <div className="user-grid">
-            {filteredUsers.map(user => (
-              <div
-                key={user.id}
-                className="user-card"
-              >
-                <h3>{user.name}</h3>
-                <p>{user.role}</p>
-                <p>{user.email}</p>
-
-                <div className="card-actions">
-                  <button
-                    onClick={() =>
-                      handleEdit(user)
-                    }
-                  >
-                    <FiEdit2 /> Edit
-                  </button>
-
-                  <button
-                    onClick={() =>
-                      handleDelete(user.id)
-                    }
-                  >
-                    <FiTrash2 /> Delete
-                  </button>
-                </div>
-              </div>
+            {roleData.map((_, index) => (
+              <Cell
+                key={index}
+                fill={COLORS[index]}
+              />
             ))}
-          </div>
-        )}
-      </main>
+          </Pie>
+          <Tooltip />
+        </PieChart>
+      </div>
+
+      {/* FORM */}
+      <div className="form-card">
+        <h3>
+          {editingUser ? "Update User" : "Add User"}
+        </h3>
+
+        <form onSubmit={handleSubmit}>
+          <input
+            name="name"
+            placeholder="Name"
+            value={formData.name}
+            onChange={handleChange}
+          />
+
+          <input
+            name="email"
+            placeholder="Email"
+            value={formData.email}
+            onChange={handleChange}
+          />
+
+          <input
+            name="role"
+            placeholder="Role"
+            value={formData.role}
+            onChange={handleChange}
+          />
+
+          <input
+            name="company"
+            placeholder="Company"
+            value={formData.company}
+            onChange={handleChange}
+          />
+
+          <textarea
+            name="bio"
+            placeholder="Bio"
+            value={formData.bio}
+            onChange={handleChange}
+          />
+
+          <button type="submit">
+            {editingUser ? "Update" : "Create"}
+          </button>
+        </form>
+      </div>
+
+      {/* USERS */}
+      {loading ? (
+        <p>Loading...</p>
+      ) : (
+        <div className="user-grid">
+          {filteredUsers.map(user => (
+            <div
+              key={user.id}
+              className="user-card"
+            >
+              <h3>{user.name}</h3>
+              <p>{user.email}</p>
+              <p>{user.company}</p>
+
+              <div className="card-actions">
+                <button
+                  onClick={() =>
+                    handleEdit(user)
+                  }
+                >
+                  <FiEdit2 /> Edit
+                </button>
+
+                <button
+                  onClick={() =>
+                    handleDelete(user.id)
+                  }
+                >
+                  <FiTrash2 /> Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
