@@ -1,44 +1,22 @@
-import {
-  useEffect,
-  useState,
-  useCallback,
-  useMemo,
-} from "react"
-
-import {
-  FiUsers,
-  FiSearch,
-  FiEdit2,
-  FiTrash2,
-  FiPlus,
-} from "react-icons/fi"
-
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-} from "recharts"
+import { useEffect, useState, useCallback, useMemo } from "react"
+import { FiSearch, FiEdit2, FiTrash2 } from "react-icons/fi"
 
 const Dashboard = () => {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(false)
 
   const [search, setSearch] = useState("")
-  const [roleFilter, setRoleFilter] = useState("")
   const [editingUser, setEditingUser] = useState(null)
-
-  const [darkMode, setDarkMode] = useState(true)
 
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     role: "",
     company: "",
-    bio: "",
+    website: "",
   })
 
-  // FETCH USERS FROM JSONPLACEHOLDER
+  // FETCH USERS
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true)
@@ -53,9 +31,9 @@ const Dashboard = () => {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: "Frontend Developer",
-        company: user.company?.name || "N/A",
-        bio: "User from JSONPlaceholder API",
+        role: "Developer",
+        company: user.company?.name,
+        website: user.website,
       }))
 
       setUsers(formatted)
@@ -67,63 +45,19 @@ const Dashboard = () => {
   }, [])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchUsers()
   }, [fetchUsers])
 
-  // FILTER USERS
-  const filteredUsers = useMemo(() => {
-    let data = [...users]
-
-    if (search) {
-      data = data.filter(user =>
-        user.name
-          .toLowerCase()
-          .includes(search.toLowerCase())
-      )
-    }
-
-    if (roleFilter) {
-      data = data.filter(
-        user => user.role === roleFilter
-      )
-    }
-
-    return data
-  }, [users, search, roleFilter])
-
-  // CHART DATA
-  const roleData = useMemo(() => {
-    const roles = ["Frontend Developer"]
-
-    return roles.map(role => ({
-      name: role,
-      value: users.filter(u => u.role === role)
-        .length,
-    }))
-  }, [users])
-
-  const COLORS = ["#38bdf8"]
-
-  // FORM HANDLERS
+  // HANDLE INPUT
   const handleChange = e => {
-    setFormData({
-      ...formData,
+    setFormData(prev => ({
+      ...prev,
       [e.target.name]: e.target.value,
-    })
+    }))
   }
 
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      email: "",
-      role: "",
-      company: "",
-      bio: "",
-    })
-    setEditingUser(null)
-  }
-
-  // ADD / UPDATE (LOCAL ONLY)
+  // SUBMIT
   const handleSubmit = e => {
     e.preventDefault()
 
@@ -141,10 +75,18 @@ const Dashboard = () => {
         ...formData,
       }
 
-      setUsers([newUser, ...users])
+      setUsers(prev => [newUser, ...prev])
     }
 
-    resetForm()
+    setFormData({
+      name: "",
+      email: "",
+      role: "",
+      company: "",
+      website: "",
+    })
+
+    setEditingUser(null)
   }
 
   // EDIT
@@ -155,169 +97,135 @@ const Dashboard = () => {
 
   // DELETE
   const handleDelete = id => {
-    setUsers(users.filter(u => u.id !== id))
+    setUsers(prev => prev.filter(u => u.id !== id))
   }
+
+  // SEARCH FILTER
+  const filteredUsers = useMemo(() => {
+    return users.filter(user =>
+      user.name
+        .toLowerCase()
+        .includes(search.toLowerCase())
+    )
+  }, [users, search])
 
   return (
     <div
-      className={
-        darkMode ? "dashboard dark" : "dashboard light"
-      }
+      style={{
+        padding: "15px",
+        background: "#0b1220",
+        color: "white",
+        minHeight: "100vh",
+      }}
     >
-      {/* TOP BAR */}
-      <div className="topbar">
-        <h2>User Dashboard</h2>
+      <h2>User Management Dashboard</h2>
 
-        <div style={{ display: "flex", gap: "10px" }}>
-          <button
-            className="theme-btn"
-            onClick={() => setDarkMode(!darkMode)}
-          >
-            Toggle Theme
-          </button>
-
-          <button className="add-btn">
-            <FiPlus /> Add User
-          </button>
-        </div>
-      </div>
-
-      {/* STATS */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <FiUsers />
-          <div>
-            <h3>{users.length}</h3>
-            <p>Total Users</p>
-          </div>
-        </div>
-      </div>
-
-      {/* SEARCH + FILTER */}
-      <div className="filter-bar">
-        <div className="search-box">
-          <FiSearch />
-          <input
-            placeholder="Search users..."
-            value={search}
-            onChange={e =>
-              setSearch(e.target.value)
-            }
-          />
-        </div>
-
-        <select
-          value={roleFilter}
-          onChange={e =>
-            setRoleFilter(e.target.value)
-          }
-        >
-          <option value="">All Roles</option>
-          <option value="Frontend Developer">
-            Frontend Developer
-          </option>
-        </select>
-      </div>
-
-      {/* CHART */}
-      <div className="chart-box">
-        <PieChart width={250} height={250}>
-          <Pie
-            data={roleData}
-            dataKey="value"
-            nameKey="name"
-            outerRadius={90}
-          >
-            {roleData.map((_, index) => (
-              <Cell
-                key={index}
-                fill={COLORS[index]}
-              />
-            ))}
-          </Pie>
-          <Tooltip />
-        </PieChart>
+      {/* SEARCH */}
+      <div style={{ margin: "10px 0" }}>
+        <FiSearch />
+        <input
+          placeholder="Search users..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ marginLeft: "10px", padding: "5px" }}
+        />
       </div>
 
       {/* FORM */}
-      <div className="form-card">
-        <h3>
-          {editingUser ? "Update User" : "Add User"}
-        </h3>
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          display: "flex",
+          gap: "8px",
+          flexWrap: "wrap",
+          marginBottom: "10px",
+        }}
+      >
+        <input
+          name="name"
+          placeholder="Name *"
+          value={formData.name}
+          onChange={handleChange}
+          required
+        />
 
-        <form onSubmit={handleSubmit}>
-          <input
-            name="name"
-            placeholder="Name"
-            value={formData.name}
-            onChange={handleChange}
-          />
+        <input
+          name="email"
+          placeholder="Email *"
+          value={formData.email}
+          onChange={handleChange}
+          required
+        />
 
-          <input
-            name="email"
-            placeholder="Email"
-            value={formData.email}
-            onChange={handleChange}
-          />
+        <select
+          name="role"
+          value={formData.role}
+          onChange={handleChange}
+          required
+        >
+          <option value="">Select Role</option>
+          <option value="Admin">Admin</option>
+          <option value="Developer">Developer</option>
+          <option value="Designer">Designer</option>
+          <option value="Manager">Manager</option>
+        </select>
 
-          <input
-            name="role"
-            placeholder="Role"
-            value={formData.role}
-            onChange={handleChange}
-          />
+        <input
+          name="company"
+          placeholder="Company *"
+          value={formData.company}
+          onChange={handleChange}
+          required
+        />
 
-          <input
-            name="company"
-            placeholder="Company"
-            value={formData.company}
-            onChange={handleChange}
-          />
+        <input
+          name="website"
+          placeholder="Website *"
+          value={formData.website}
+          onChange={handleChange}
+          required
+        />
 
-          <textarea
-            name="bio"
-            placeholder="Bio"
-            value={formData.bio}
-            onChange={handleChange}
-          />
+        <button type="submit">
+          {editingUser ? "Update" : "Add User"}
+        </button>
+      </form>
 
-          <button type="submit">
-            {editingUser ? "Update" : "Create"}
-          </button>
-        </form>
-      </div>
-
-      {/* USERS */}
+      {/* USERS GRID (3–4 PER ROW) */}
       {loading ? (
         <p>Loading...</p>
       ) : (
         <div className="user-grid">
           {filteredUsers.map(user => (
-            <div
-              key={user.id}
-              className="user-card"
-            >
+            <div className="user-card" key={user.id}>
+
               <h3>{user.name}</h3>
               <p>{user.email}</p>
               <p>{user.company}</p>
 
-              <div className="card-actions">
-                <button
-                  onClick={() =>
-                    handleEdit(user)
-                  }
-                >
+              {/* ROLE */}
+              <span className="role-badge">
+                {user.role}
+              </span>
+
+              {/* WEBSITE (NO LINK) */}
+              <p style={{ fontSize: "13px", color: "#94a3b8" }}>
+                Website: {user.website}
+              </p>
+
+              <div style={{ marginTop: "8px" }}>
+                <button onClick={() => handleEdit(user)}>
                   <FiEdit2 /> Edit
                 </button>
 
                 <button
-                  onClick={() =>
-                    handleDelete(user.id)
-                  }
+                  onClick={() => handleDelete(user.id)}
+                  style={{ marginLeft: "8px" }}
                 >
                   <FiTrash2 /> Delete
                 </button>
               </div>
+
             </div>
           ))}
         </div>
